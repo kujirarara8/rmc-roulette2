@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>RMC サロンルーレット</title>
+<style>
+  :root{
+    --ink:#1d2330; --sub:#6b7280; --line:#e7e8ec; --bg:#ffffff; --soft:#f6f7f9;
+    --navy:#2b3a67; --rose:#b14b5e; --rose-soft:#fbeef0; --gold:#c79a4b;
+    --shadow:0 8px 30px rgba(28,35,52,.10); --radius:18px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .wrap{max-width:560px;margin:0 auto;padding:18px 16px 40px;}
+
+  /* ===== 録画画面（最小限） ===== */
+  header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px;}
+  .title{font-size:18px;font-weight:800;letter-spacing:.02em;}
+  .title .dot{color:var(--rose);}
+  .gear{
+    width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:#fff;
+    color:#aeb4be;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto;
+    transition:color .15s,background .15s;
+  }
+  .gear:active{background:var(--soft);}
+  .gear svg{width:20px;height:20px;}
+
+  .wheel-zone{position:relative;width:100%;max-width:400px;margin:8px auto 0;aspect-ratio:1/1;}
+  .pointer{position:absolute;top:-2px;left:50%;transform:translateX(-50%);z-index:5;width:0;height:0;border-left:16px solid transparent;border-right:16px solid transparent;border-top:28px solid var(--rose);filter:drop-shadow(0 2px 3px rgba(0,0,0,.25));}
+  #wheel{display:block;width:100%;height:100%;transform:rotate(0deg);}
+  .hub{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:48%;height:48%;border-radius:50%;background:#fff;box-shadow:0 6px 20px rgba(28,35,52,.18), inset 0 0 0 1px var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:10px;z-index:4;cursor:pointer;user-select:none;}
+  .hub.disabled{cursor:default;}
+  .hub .hub-label{font-size:11px;letter-spacing:.16em;color:var(--sub);font-weight:700;text-transform:uppercase;}
+  .hub .hub-name{font-size:20px;font-weight:800;margin-top:4px;line-height:1.25;word-break:break-word;color:var(--navy);}
+  .hub .hub-name.win{color:var(--rose);animation:pop .4s ease;}
+  .hub .hub-start{font-size:32px;font-weight:800;color:var(--ink);letter-spacing:.04em;}
+  .hub .hub-sub{font-size:11px;color:var(--sub);margin-top:4px;}
+  @keyframes pop{0%{transform:scale(.85);}60%{transform:scale(1.07);}100%{transform:scale(1);}}
+  .wheel-empty{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;text-align:center;color:var(--sub);font-size:13px;}
+
+  .repeat-note{min-height:34px;margin-top:16px;text-align:center;}
+  .repeat-note .badge{display:inline-block;background:var(--rose-soft);color:var(--rose);border-radius:999px;padding:6px 18px;font-size:16px;font-weight:800;border:1px solid #f3d9de;}
+  .repeat-note .badge.first{background:#eef3ff;color:var(--navy);border-color:#dbe4fb;}
+
+  /* ===== 管理パネル ===== */
+  .overlay{position:fixed;inset:0;background:rgba(28,35,52,.45);z-index:50;display:none;}
+  .overlay.show{display:block;}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;background:#fff;border-radius:20px 20px 0 0;max-width:560px;margin:0 auto;height:90vh;display:none;flex-direction:column;box-shadow:0 -8px 40px rgba(0,0,0,.2);}
+  .sheet.show{display:flex;}
+  .sheet-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid var(--line);flex:0 0 auto;}
+  .sheet-head h3{margin:0;font-size:16px;font-weight:800;}
+  .sheet-head .admin-tag{font-size:11px;color:var(--sub);font-weight:700;background:var(--soft);padding:3px 9px;border-radius:999px;margin-left:8px;}
+  .sheet-close{background:none;border:none;font-size:24px;color:var(--sub);cursor:pointer;line-height:1;padding:2px 6px;}
+  .sheet-body{padding:16px 18px;overflow-y:auto;flex:1 1 auto;}
+
+  .summary{display:flex;gap:8px;margin-bottom:6px;}
+  .stat{flex:1;background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:12px 10px;text-align:center;}
+  .stat .n{font-size:22px;font-weight:800;color:var(--navy);}
+  .stat .l{font-size:11px;color:var(--sub);margin-top:2px;}
+
+  .admin-actions{display:flex;gap:8px;margin-top:14px;}
+  .admin-actions button{flex:1;border:1px solid var(--line);background:#fff;color:var(--sub);border-radius:12px;padding:12px 8px;font-size:13px;font-weight:700;cursor:pointer;}
+  .admin-actions button:active{background:var(--soft);}
+  .admin-actions button.danger{color:var(--rose);}
+
+  .section-label{font-size:13px;font-weight:800;margin:22px 2px 8px;display:flex;align-items:center;justify-content:space-between;}
+  .sort-toggle{font-size:12px;color:var(--navy);background:none;border:none;font-weight:700;cursor:pointer;padding:4px;}
+
+  /* 名簿編集 */
+  .add-row{display:flex;gap:8px;margin-bottom:6px;}
+  .add-row input{flex:1;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px;background:var(--soft);}
+  .add-row input:focus{outline:none;border-color:var(--navy);background:#fff;}
+  .add-row button{border:none;background:var(--navy);color:#fff;border-radius:12px;padding:0 18px;font-size:15px;font-weight:800;cursor:pointer;}
+  .add-hint{font-size:11px;color:var(--sub);margin:2px 2px 10px;}
+
+  .search{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 14px;font-size:15px;margin-bottom:10px;background:var(--soft);}
+  .search:focus{outline:none;border-color:var(--navy);background:#fff;}
+  ul.members{list-style:none;margin:0;padding:0;}
+  ul.members li{display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid var(--line);font-size:14px;}
+  ul.members li.hit{background:var(--rose-soft);border-radius:8px;padding-left:8px;padding-right:8px;}
+  .m-name{flex:1;word-break:break-word;}
+  .m-count{min-width:30px;text-align:center;font-weight:800;font-size:13px;color:var(--sub);}
+  .m-count.has{color:#fff;background:var(--rose);border-radius:999px;padding:2px 0;}
+  .m-count.has[data-big="1"]{background:var(--navy);}
+  .m-step{display:flex;align-items:center;gap:4px;flex:0 0 auto;}
+  .m-step button.step{width:26px;height:26px;border:1px solid var(--line);background:#fff;color:var(--navy);border-radius:8px;font-size:16px;font-weight:800;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
+  .m-step button.step:active{background:var(--soft);}
+  .m-step button.step:disabled{color:#cfd3da;cursor:default;}
+  ul.members li button.del{border:1px solid #f3d9de;background:var(--rose-soft);color:var(--rose);border-radius:10px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;}
+  .empty{color:var(--sub);font-size:13px;text-align:center;padding:20px;}
+
+  .restore{display:block;width:100%;margin-top:18px;background:none;border:none;color:var(--sub);font-size:12px;text-decoration:underline;cursor:pointer;}
+  .footnote{margin-top:14px;text-align:center;color:#b6bcc6;font-size:11px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="title">サロンルーレット<span class="dot">.</span></div>
+    <button class="gear" id="gearBtn" aria-label="管理メニュー">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </header>
+
+  <div class="wheel-zone">
+    <div class="pointer"></div>
+    <svg id="wheel" viewBox="0 0 400 400" aria-hidden="true"></svg>
+    <div class="hub" id="hub">
+      <div id="hubContent">
+        <div class="hub-start">START</div>
+        <div class="hub-sub">タップで回す</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="repeat-note" id="repeatNote"></div>
+</div>
+
+<!-- ===== 管理パネル ===== -->
+<div class="overlay" id="overlay"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-head">
+    <h3>管理メニュー<span class="admin-tag">あなただけに表示</span></h3>
+    <button class="sheet-close" id="sheetClose">×</button>
+  </div>
+  <div class="sheet-body">
+
+    <div class="summary">
+      <div class="stat"><div class="n" id="statTotal">0</div><div class="l">抽選した回数</div></div>
+      <div class="stat"><div class="n" id="statHit">0</div><div class="l">当たった人数</div></div>
+      <div class="stat"><div class="n" id="statMax">0</div><div class="l">最多被り回数</div></div>
+    </div>
+
+    <div class="admin-actions">
+      <button id="undoBtn">↩ 取り消し</button>
+      <button id="copyBtn">結果コピー</button>
+      <button id="resetBtn" class="danger">回数リセット</button>
+    </div>
+
+    <div class="section-label">名簿の編集</div>
+    <div class="add-row">
+      <input id="addInput" placeholder="追加する名前を入力" autocomplete="off">
+      <button id="addBtn">追加</button>
+    </div>
+    <div class="add-hint">入会した人を追加・退会した人を削除できます。変更は自動保存され、翌月もそのまま使えます。</div>
+
+    <div class="section-label">
+      <span>当選回数・名簿（<span id="poolPill">0</span>名）</span>
+      <button class="sort-toggle" id="sortToggle">並び替え：回数順</button>
+    </div>
+    <input class="search" id="search" placeholder="名前で検索…" autocomplete="off">
+    <ul class="members" id="memberList"></ul>
+
+    <button class="restore" id="restoreBtn">初期メンバー（113名）に戻す</button>
+    <div class="footnote">記録・名簿はこの端末のブラウザに保存されます · RMC</div>
+  </div>
+</div>
+
+<script>
+const DEFAULT_MEMBERS = [
+  "ayu｜ KOMITAS",
+  "kaori_AtelierK",
+  "Karos",
+  "mako｜mynails",
+  "miho┆minor chord gems✦",
+  "minami 🐬 negne ⋮ ENFJ-A",
+  "saya_Ljuska（リュースカ）| INTJ",
+  "えぬ/ルル.ペットリボン/",
+  "まみ | grassin グラスイン(ENFJ-T)🦊",
+  "みく/sugary sweety🎀アクセサリー",
+  "ゆう🏄‍♀️/conecone club🍩ENFP",
+  "小梅ちゃん",
+  "ai_little.stitch.garden",
+  "ami/AMIE （ジュエリー販売）",
+  "anela yurie",
+  "Aoi🪐(ESFP) / ECRIN",
+  "chie tsunagu..",
+  "chii",
+  "eni/∗atelier eni∗(アトリエ　エニ)",
+  "eri　　pipu♡lazuli💖INFJ-T",
+  "haruca/catenail",
+  "ito  【 UNJELLY 】- ISFP(冒険家)",
+  "Kanna🦢┊nailtip atelier “why.”",
+  "Kaori/cororier",
+  "kazumi_r.m.glim {INFP-T}",
+  "kiyoka💅ino.",
+  "kiyoko/ 焼菓子Sainte Enfant ｻﾝﾀﾝﾌｧﾝ",
+  "Kotomi｜Olinoa",
+  "MANAMI_MILIAN🐶🧶",
+  "miho / PITAAP",
+  "mika/pi_ci",
+  "mikasuke",
+  "miki 🦩toa nico |  INFP-T",
+  "mio｜ｲﾛﾊﾆｸﾚﾖﾝ/ﾌﾞﾃｨｯｸｱﾝﾄﾞｩﾄﾛﾜ",
+  "momo／Larmue~らるみゅ~（INFP-T）",
+  "Natsuki N'homies.pets",
+  "nicori/🫏INFP-T",
+  "otoyo🐎_ung.  ⌇ ENFJ-A",
+  "Raco🦦Seulmoi. /INTJ-T",
+  "Renamary,s(レナマリー)",
+  "RIKAKO🫧ciel candle 2期生",
+  "ryogo / camouflage paracode",
+  "Sachi🐈‍⬛🪄KiroKiro⁑INFP-A",
+  "Saya_MOANI/syurmare",
+  "sayaka🦄/ SOWA ｜ｿﾜ｜accessory",
+  "TOMO    sorara.works",
+  "Tomomi💎🐶| Kenta’s Factory",
+  "yoshie/tytymade🧶ISFP（冒険家）",
+  "Yuka / Saphiret （サフィレット）",
+  "yuka_myun./ISFP",
+  "yumi/hash.you",
+  "Yuri/mitte(ENFJ)",
+  "あいり・Marialeaf | ねこじるしハーブティー",
+  "あき🍐/KUROTO",
+  "あくびちゃん　Aki-unseen♡",
+  "あこ | アジェラート🌝(INTP-T)",
+  "あやめ💐Fika_beads/illust/ISTP",
+  "あゆ⌇Nana⌇INTJ-A",
+  "あゆあゆ🪽/Ayumi.(ENFJ-T)",
+  "あゆみ｜moyulu(ﾓﾕﾙ) 🪷",
+  "あゆ￤Ranihana💛ISFP-T",
+  "あられ/THIS IS BABY",
+  "あん-Ann.",
+  "おひな:nico knit(ニコニット)",
+  "かすみ | Gypso  | INFJ-T",
+  "かず　余白pot",
+  "かんな/my color",
+  "きゃさりん ⚪｜ROTONDO(ﾛﾄﾝﾄﾞ)",
+  "こにぃ | co2c",
+  "さやか🐶ぽんずくろーぜっと🐾　INFJ-AよりのT",
+  "しほ | MYRO",
+  "じゅの / Juno - Aurè",
+  "じゅんな🧚🏼‍♀️2.5期生|Juvaleジュエリー",
+  "たいぞー｜和晴屋（WAHARUYA）",
+  "ちか/04mart -ゼロヨンマート",
+  "ちむ⌇Umepi.⌇ISTP",
+  "どろんこ　DoroNco.",
+  "なお🎨🖼️ papi（INFJ）",
+  "のめこ |nomeco Illust&Design💌 INFP",
+  "はな⌇CHOU. BLOSSOM STONE",
+  "はるか_hareiro.",
+  "ひろみ/Ruriya",
+  "ぶぅ/omofarb/INFP-T",
+  "ますみ/Real Queen",
+  "まりえ|M made🐇",
+  "まーじ_La mer de LUMIERE",
+  "みさと/son:mul🧵",
+  "みど🧚‍♀️meadow made vintage",
+  "ゆい/ＮＥＯ",
+  "ゆう／Happy Hour Lab🍻",
+  "ゆか | Pripri",
+  "ゆか(しばくま🐶🐻)INFP",
+  "ゆーか ⌇totona",
+  "よう🌷カタコト+a(INFP-A)",
+  "りか INFJ🪞（chiimai ちいまい）",
+  "アユミ【Hibicrayon】INFJ-T",
+  "イェカ ┊ yeKa (ENFJ-T)",
+  "シーナ｜sutdio PiTADA",
+  "スウ SUU",
+  "ドリーミィdreamy_girl.1433",
+  "ナエ⌇ ナエのニット 🐑 ⌇INFP-T",
+  "ナミ💫jiiiiiikジーク/ENFP-A運動家",
+  "マミ/ツバメトイロ:INFJ-A提唱者1期生",
+  "ミト┊bubbly pebble┊",
+  "ミーナ｜ZELCA（INTP）",
+  "リリー/Majo Lily",
+  "ルル　ruru  doll jewel",
+  "木梨　tail.designshop",
+  "🍀みょうが/myouga koubou/ESFJ/1期生",
+  "🍉千華-ﾁｶ-(INFJ-A提唱者)",
+  "🐈rinoa / Ri_no.",
+  "🐈‍⬛Ayano┊lisora ﾘｿﾗ (ESTJ-A)",
+  "🦚cuu.../AKI_(INFJ-A)"
+];
+</script>
+<script>
+(function(){
+  const STORE_KEY='rmc_roulette_v3';
+  const wheel=document.getElementById('wheel');
+  const hub=document.getElementById('hub');
+  const hubContent=document.getElementById('hubContent');
+  const repeatNote=document.getElementById('repeatNote');
+  const listEl=document.getElementById('memberList');
+  const searchEl=document.getElementById('search');
+  const sortToggle=document.getElementById('sortToggle');
+  const copyBtn=document.getElementById('copyBtn');
+  const poolPill=document.getElementById('poolPill');
+  const overlay=document.getElementById('overlay');
+  const sheet=document.getElementById('sheet');
+  const addInput=document.getElementById('addInput');
+
+  let MEMBERS=[];
+  let counts={}, history=[], sortMode='count', spinning=false, currentRot=0;
+
+  try{
+    const s=JSON.parse(localStorage.getItem(STORE_KEY)||'null');
+    if(s&&Array.isArray(s.members)&&s.members.length){
+      MEMBERS=s.members.slice(); counts=s.counts||{}; history=Array.isArray(s.history)?s.history:[];
+    }else{ MEMBERS=DEFAULT_MEMBERS.slice(); }
+  }catch(e){ MEMBERS=DEFAULT_MEMBERS.slice(); }
+  MEMBERS.forEach(n=>{ if(typeof counts[n]!=='number') counts[n]=0; });
+  history=history.filter(n=>MEMBERS.includes(n));
+
+  function save(){try{localStorage.setItem(STORE_KEY,JSON.stringify({members:MEMBERS,counts,history}));}catch(e){}}
+  function escapeXml(s){return s.replace(/[<>&'"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&#39;','"':'&quot;'}[c]));}
+  const palette=['#e23b3b','#e7762a','#e9b62e','#5aa84a','#2e8f8f','#2f6fb0','#3b4fb0','#7b3fb0','#b03f8f','#b14b5e','#d98a3a','#3a9d76'];
+  function shortName(full){return full.replace(/[\s｜|/／].*$/,'').slice(0,8);}
+
+  function buildWheel(){
+    const N=MEMBERS.length;
+    poolPill.textContent=N;
+    const oe=document.querySelector('.wheel-empty'); if(oe)oe.remove();
+    if(N===0){
+      wheel.innerHTML='<circle cx="200" cy="200" r="198" fill="#f1f2f5"/>';
+      const e=document.createElement('div');e.className='wheel-empty';e.textContent='名簿が空です。歯車 → 名簿の編集 から追加してください。';
+      document.querySelector('.wheel-zone').appendChild(e); return;
+    }
+    const SEG=360/N, cx=200,cy=200,rOut=198,rIn=92;
+    const polar=(r,deg)=>{const a=(deg-90)*Math.PI/180;return [cx+r*Math.cos(a),cy+r*Math.sin(a)];};
+    let svg='';
+    for(let i=0;i<N;i++){
+      const a0=i*SEG,a1=(i+1)*SEG;
+      const [x0,y0]=polar(rOut,a0),[x1,y1]=polar(rOut,a1),[x2,y2]=polar(rIn,a1),[x3,y3]=polar(rIn,a0);
+      const large=(a1-a0)>180?1:0, fill=palette[i%palette.length];
+      svg+=`<path d="M${x0} ${y0} A${rOut} ${rOut} 0 ${large} 1 ${x1} ${y1} L${x2} ${y2} A${rIn} ${rIn} 0 ${large} 0 ${x3} ${y3} Z" fill="${fill}"/>`;
+      const mid=a0+SEG/2;
+      const [lx,ly]=polar((rOut+rIn)/2+34,mid);
+      const anchor=(mid>180)?'start':'end';
+      const fs=N>90?7.5:(N>50?9:(N>24?11:13));
+      svg+=`<text x="${lx}" y="${ly}" transform="rotate(${mid-90+(mid>180?180:0)} ${lx} ${ly})" font-size="${fs}" fill="#fff" text-anchor="${anchor}" dominant-baseline="middle" font-weight="600" style="paint-order:stroke;stroke:rgba(0,0,0,.25);stroke-width:.4px">${escapeXml(shortName(MEMBERS[i]))}</text>`;
+    }
+    svg+=`<circle cx="200" cy="200" r="198" fill="none" stroke="rgba(0,0,0,.12)" stroke-width="2"/>`;
+    wheel.innerHTML=svg;
+  }
+
+  const totalDraws=()=>history.length;
+  const hitPeople=()=>MEMBERS.filter(n=>counts[n]>0).length;
+  const maxRepeat=()=>MEMBERS.reduce((m,n)=>Math.max(m,counts[n]||0),0);
+  function renderStats(){
+    document.getElementById('statTotal').textContent=totalDraws();
+    document.getElementById('statHit').textContent=hitPeople();
+    document.getElementById('statMax').textContent=maxRepeat();
+  }
+  function renderList(){
+    const q=searchEl.value.trim().toLowerCase();
+    let arr=MEMBERS.map(n=>({name:n,c:counts[n]||0}));
+    if(sortMode==='count') arr.sort((a,b)=>b.c-a.c||MEMBERS.indexOf(a.name)-MEMBERS.indexOf(b.name));
+    else arr.sort((a,b)=>a.name.localeCompare(b.name,'ja'));
+    if(q) arr=arr.filter(x=>x.name.toLowerCase().includes(q));
+    const mx=maxRepeat();
+    listEl.innerHTML='';
+    if(!arr.length){listEl.innerHTML='<div class="empty">該当する人がいません</div>';return;}
+    const frag=document.createDocumentFragment();
+    arr.forEach(x=>{
+      const li=document.createElement('li'); if(x.c>0)li.className='hit';
+      const big=(x.c>0&&x.c===mx&&mx>=2)?'1':'0';
+      li.innerHTML='<span class="m-name"></span>'
+        +'<span class="m-step">'
+        +'<button class="step minus" aria-label="1減らす">−</button>'
+        +'<span class="m-count '+(x.c>0?'has':'')+'" data-big="'+big+'">'+x.c+'</span>'
+        +'<button class="step plus" aria-label="1増やす">＋</button>'
+        +'</span>'
+        +'<button class="del">削除</button>';
+      li.querySelector('.m-name').textContent=x.name;
+      const minusBtn=li.querySelector('.minus');
+      minusBtn.disabled = x.c<=0;
+      minusBtn.addEventListener('click',()=>adjustCount(x.name,-1));
+      li.querySelector('.plus').addEventListener('click',()=>adjustCount(x.name,1));
+      li.querySelector('.del').addEventListener('click',()=>removeMember(x.name));
+      frag.appendChild(li);
+    });
+    listEl.appendChild(frag);
+  }
+  function renderAll(){renderStats();renderList();}
+
+  function spin(){
+    if(spinning)return;
+    const N=MEMBERS.length;
+    if(N===0){alert('名簿が空です。歯車メニューから名前を追加してください。');return;}
+    spinning=true; hub.classList.add('disabled'); repeatNote.textContent='';
+    const SEG=360/N, idx=Math.floor(Math.random()*N), winner=MEMBERS[idx];
+    const segCenter=idx*SEG+SEG/2, turns=5+Math.floor(Math.random()*3);
+    currentRot = currentRot + turns*360 + ((360-segCenter) - (currentRot%360) + 360)%360;
+    wheel.style.transition='transform 4.2s cubic-bezier(.17,.67,.16,1)';
+    wheel.style.transform='rotate('+currentRot+'deg)';
+    hubContent.innerHTML='<div class="hub-start" style="font-size:26px;color:#2b3a67">…</div>';
+    const flick=setInterval(()=>{hubContent.querySelector('.hub-start').textContent=shortName(MEMBERS[Math.floor(Math.random()*N)]).slice(0,6);},90);
+    setTimeout(()=>{clearInterval(flick);finish(winner);},4250);
+  }
+  function finish(winner){
+    counts[winner]=(counts[winner]||0)+1; history.push(winner); save();
+    const t=counts[winner];
+    hubContent.innerHTML='<div class="hub-label">winner</div><div class="hub-name win"></div>';
+    hubContent.querySelector('.hub-name').textContent=winner;
+    repeatNote.innerHTML = t>=2 ? '<span class="badge">被り '+t+'回目！</span>' : '';
+    spinning=false; hub.classList.remove('disabled'); renderAll();
+  }
+  function resetHub(){hubContent.innerHTML='<div class="hub-start">START</div><div class="hub-sub">タップで回す</div>';}
+
+  function undo(){
+    if(spinning||!history.length)return;
+    const last=history.pop(); if(counts[last]>0)counts[last]--; save();
+    repeatNote.textContent=''; resetHub(); renderAll();
+  }
+  function resetCounts(){
+    if(spinning)return;
+    if(!confirm('全員の当選回数を0に戻します。よろしいですか？（名簿は消えません）'))return;
+    MEMBERS.forEach(n=>counts[n]=0); history=[]; save(); repeatNote.textContent=''; resetHub(); renderAll();
+  }
+  function copyResult(){
+    const ranked=MEMBERS.map(n=>({name:n,c:counts[n]||0})).filter(x=>x.c>0).sort((a,b)=>b.c-a.c);
+    if(!ranked.length){alert('まだ抽選結果がありません');return;}
+    let txt='【サロンルーレット結果】抽選'+totalDraws()+'回\n';
+    ranked.forEach((x,i)=>{txt+=(i+1)+'. '+x.name+'：'+x.c+'回\n';});
+    const done=()=>{const o=copyBtn.textContent;copyBtn.textContent='コピー完了';setTimeout(()=>copyBtn.textContent=o,1400);};
+    if(navigator.clipboard){navigator.clipboard.writeText(txt).then(done).catch(()=>fb(txt,done));}else fb(txt,done);
+  }
+  function fb(txt,done){const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');done();}catch(e){alert('コピーできませんでした');}ta.remove();}
+
+  // 管理パネル開閉
+  function openSheet(){overlay.classList.add('show');sheet.classList.add('show');renderAll();}
+  function closeSheet(){overlay.classList.remove('show');sheet.classList.remove('show');}
+
+  function addMember(){
+    const name=addInput.value.trim();
+    if(!name){addInput.focus();return;}
+    if(MEMBERS.includes(name)){alert('「'+name+'」はすでに名簿にあります');return;}
+    MEMBERS.push(name); counts[name]=counts[name]||0; save();
+    addInput.value=''; addInput.focus(); buildWheel(); renderAll();
+  }
+  function adjustCount(name,delta){
+    if(spinning)return;
+    if(!MEMBERS.includes(name))return;
+    const cur=counts[name]||0;
+    if(delta<0){
+      if(cur<=0)return;
+      counts[name]=cur-1;
+      const idx=history.lastIndexOf(name);
+      if(idx>=0)history.splice(idx,1);
+    }else{
+      counts[name]=cur+1;
+      history.push(name);
+    }
+    save(); repeatNote.textContent=''; renderAll();
+  }
+
+  function removeMember(name){
+    if(!confirm('「'+name+'」を名簿から削除します。よろしいですか？\n（当選回数も消えます）'))return;
+    MEMBERS=MEMBERS.filter(n=>n!==name); delete counts[name]; history=history.filter(n=>n!==name); save();
+    buildWheel(); renderAll();
+  }
+  function restoreDefault(){
+    if(!confirm('初期メンバー（113名）に戻します。追加した人は消え、当選回数もリセットされます。よろしいですか？'))return;
+    MEMBERS=DEFAULT_MEMBERS.slice(); counts={}; MEMBERS.forEach(n=>counts[n]=0); history=[]; save();
+    resetHub(); repeatNote.textContent=''; buildWheel(); renderAll();
+  }
+
+  hub.addEventListener('click',spin);
+  document.getElementById('gearBtn').addEventListener('click',openSheet);
+  document.getElementById('sheetClose').addEventListener('click',closeSheet);
+  overlay.addEventListener('click',closeSheet);
+  document.getElementById('undoBtn').addEventListener('click',undo);
+  document.getElementById('resetBtn').addEventListener('click',resetCounts);
+  copyBtn.addEventListener('click',copyResult);
+  searchEl.addEventListener('input',renderList);
+  sortToggle.addEventListener('click',()=>{sortMode=sortMode==='count'?'name':'count';sortToggle.textContent='並び替え：'+(sortMode==='count'?'回数順':'名前順');renderList();});
+  document.getElementById('addBtn').addEventListener('click',addMember);
+  addInput.addEventListener('keydown',e=>{if(e.key==='Enter')addMember();});
+  document.getElementById('restoreBtn').addEventListener('click',restoreDefault);
+
+  buildWheel(); renderAll();
+})();
+</script>
+</body>
+</html>
